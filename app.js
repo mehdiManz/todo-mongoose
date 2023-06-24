@@ -1,19 +1,40 @@
 "use strict";
-
+require('dotenv').config();
 
 const express = require("express");
 const mime = require("mime");
 const getCurrentDate = require("./date");
+const mongoose = require("mongoose");
 
 const app = express();
 const port = 3000;
 
-let items = [
-  { id: 1, text: "Buy Food", checked: false },
-  { id: 2, text: "Cook Food", checked: false },
-  { id: 3, text: "Eat Food", checked: false },
-];
-let workItems = [];
+mongoose.connect(`mongodb+srv://mehdiabdolnabizadeh:${process.env.MONGODB_PASSWORD}@clusterofmine.qb3vewe.mongodb.net/2DoLeastDB`, { useNewUrlParser: true })
+
+  .then(() => {
+    console.log("Connected to the MongoDB database successfully");
+    app.listen(port, () => {
+      console.log(`Server is happily working on port ${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Error connecting to the MongoDB database:", error);
+  });
+
+const itemSchema = new mongoose.Schema({
+  id: Number,
+  text: String,
+  checked: Boolean,
+});
+
+const workItemSchema = new mongoose.Schema({
+  id: Number,
+  text: String,
+  checked: Boolean,
+});
+
+const Item = mongoose.model("Item", itemSchema);
+const WorkItem = mongoose.model("WorkItem", workItemSchema);
 
 app.set("view engine", "ejs");
 
@@ -32,20 +53,26 @@ app.get("/about", (req, res) => {
   res.render("about");
 });
 
-app.get("/", (req, res) => {
-  const currentDay = getCurrentDate();
+app.get("/", async (req, res) => {
+  try {
+    const currentDay = getCurrentDate();
+    const items = await Item.find();
 
-  res.render("list", { listTitle: currentDay, items: items });
+    res.render("list", { listTitle: currentDay, items: items });
+  } catch (error) {
+    console.error("Error fetching items:", error);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
-app.post("/", (req, res) => {
+app.post("/", async (req, res) => {
   let item = req.body.newItem;
   if (item.trim() !== "") {
     if (req.body.list === "Work List") {
-      workItems.push({ id: generateItemId(), text: item, checked: false });
+      await WorkItem.create({ id: generateItemId(), text: item, checked: false });
       res.redirect("/work");
     } else {
-      items.push({ id: generateItemId(), text: item, checked: false });
+      await Item.create({ id: generateItemId(), text: item, checked: false });
       res.redirect("/");
     }
   } else {
@@ -53,40 +80,38 @@ app.post("/", (req, res) => {
   }
 });
 
-app.get("/work", (req, res) => {
-  res.render("list", { listTitle: "Work List", items: workItems });
+app.get("/work", async (req, res) => {
+  try {
+    const workItems = await WorkItem.find();
+
+    res.render("list", { listTitle: "Work List", items: workItems });
+  } catch (error) {
+    console.error("Error fetching work items:", error);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
-app.post("/work", (req, res) => {
+app.post("/work", async (req, res) => {
   let item = req.body.newItem;
   if (item.trim() !== "") {
-    // Check if the input is not empty or only whitespace
-    workItems.push({ id: generateItemId(), text: item, checked: false });
+    await WorkItem.create({ id: generateItemId(), text: item, checked: false });
   }
   res.redirect("/work");
 });
 
-// ...
-
-app.post("/crossoff", (req, res) => {
+app.post("/crossoff", async (req, res) => {
   const itemId = parseInt(req.body.itemId);
   const listName = req.body.listName;
 
   if (listName === "Work List") {
-    workItems = workItems.filter((item) => item.id !== itemId);
+    await WorkItem.deleteOne({ id: itemId });
     res.redirect("/work");
   } else {
-    items = items.filter((item) => item.id !== itemId);
+    await Item.deleteOne({ id: itemId });
     res.redirect("/");
   }
 });
 
-// ...
-
 function generateItemId() {
   return Math.floor(Math.random() * 1000000);
 }
-
-app.listen(port, () => {
-  console.log(`Server is happily working on port ${port}`);
-});

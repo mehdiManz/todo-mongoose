@@ -5,7 +5,7 @@ node_modules/
 .env
 .env.*
 
-# Ignore log files
+# Ignore log filesnode 
 *.log
 
 # Ignore compiled files
